@@ -6,55 +6,54 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
 
-      - name: Bootstrap Gradle Wrapper
+      - name: Install Android command-line tools
         run: |
-          mkdir -p gradle/wrapper
-          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            curl -sL --fail -o gradle/wrapper/gradle-wrapper.jar \
-              https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar
-          fi
-          if [ ! -f gradlew ]; then
-            curl -sL --fail -o gradlew \
-              https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradlew
-            chmod +x gradlew
-          fi
-          if [ ! -f gradlew.bat ]; then
-            curl -sL --fail -o gradlew.bat \
-              https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradlew.bat
-          fi
-          if [ ! -f gradle/wrapper/gradle-wrapper.properties ]; then
-            cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-distributionBase=GRADLE_USER_HOME
-distributionPath=wrapper/dists
-distributionUrl=https\://services.gradle.org/distributions/gradle-8.2-bin.zip
-networkTimeout=10000
-validateDistributionUrl=true
-zipStoreBase=GRADLE_USER_HOME
-zipStorePath=wrapper/dists
-EOF
-          fi
+          sudo apt-get update
+          sudo apt-get install -y unzip wget
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline.zip
+          unzip -qq cmdline.zip -d cmdline-tools
+          # move into expected layout
+          mkdir -p cmdline-tools/latest
+          mv cmdline-tools/cmdline-tools/* cmdline-tools/latest/ || true
+
+      - name: Set ANDROID SDK env vars and PATH
+        run: |
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+
+      - name: Install Android SDK packages
+        run: |
+          SDKMANAGER="$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager"
+          # update sdkmanager and install packages
+          yes | $SDKMANAGER --sdk_root=$HOME/android-sdk "platform-tools" "platforms;android-33" "build-tools;33.0.0" "cmdline-tools;latest"
+
+      - name: Accept Android SDK licenses
+        run: |
+          SDKMANAGER="$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager"
+          yes | $SDKMANAGER --sdk_root=$HOME/android-sdk --licenses
 
       - name: Grant execute permission
         run: chmod +x gradlew
 
-      - name: Build with Gradle
+      - name: Build APK
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: egbe-release-apk
           path: app/build/outputs/apk/release/*.apk
