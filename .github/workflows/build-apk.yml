@@ -17,20 +17,39 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Setup Android SDK
-        uses: r0adkll/setup-android@v2
-        with:
-          api-level: 33
-          build-tools: 33.0.0
-          cache: true
+      - name: Install Android command-line tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip wget
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline.zip
+          unzip -qq cmdline.zip -d cmdline-tools
+          mkdir -p cmdline-tools/latest
+          mv cmdline-tools/cmdline-tools/* cmdline-tools/latest/ || true
+
+      - name: Set ANDROID SDK env vars and PATH
+        run: |
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+
+      - name: Install Android SDK packages
+        run: |
+          SDKMANAGER="$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager"
+          yes | $SDKMANAGER --sdk_root=$HOME/android-sdk "platform-tools" "platforms;android-33" "build-tools;33.0.0" "cmdline-tools;latest"
 
       - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses
+        run: |
+          SDKMANAGER="$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager"
+          yes | $SDKMANAGER --sdk_root=$HOME/android-sdk --licenses
 
-      - run: chmod +x gradlew
+      - name: Grant execute permission
+        run: chmod +x gradlew
 
       - name: Build APK
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
