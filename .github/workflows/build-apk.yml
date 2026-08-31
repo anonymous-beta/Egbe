@@ -10,27 +10,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
+
+      - name: Setup Android SDK
+        uses: r0adkll/setup-android@v2
+        with:
+          api-level: 33
+          build-tools: 33.0.0
+          cache: true
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
+
       - run: chmod +x gradlew
-      - run: ./gradlew assembleRelease --no-daemon
+
+      - name: Build APK
+        run: ./gradlew assembleRelease --no-daemon
+
       - uses: actions/upload-artifact@v4
         with:
           name: egbe-release-apk
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
-
-  # Uncomment below to auto-deploy backend to Heroku/Render
-  # deploy-backend:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: akhileshns/heroku-deploy@v3.12.14
-  #       with:
-  #         heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-  #         heroku_app_name: "egbe-backend"
-  #         heroku_email: "your-email@example.com"
-  #         appdir: "backend"
