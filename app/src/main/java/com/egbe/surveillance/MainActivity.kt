@@ -7,12 +7,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.egbe.surveillance.data.remote.RetrofitClient
 import com.egbe.surveillance.navigation.EGBENavHost
 import com.egbe.surveillance.ui.theme.EGBETheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Initialize the API client with saved URL
+        RetrofitClient.init(this)
+
         setContent {
             EGBETheme {
                 Surface(
