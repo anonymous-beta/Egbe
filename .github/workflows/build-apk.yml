@@ -25,25 +25,21 @@ jobs:
 
       - name: Generate Gradle Wrapper (temporary)
         run: |
-          # Download a modern Gradle distribution
           GRADLE_VERSION=8.2
           wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip -O gradle.zip
           unzip -q gradle.zip
           ./gradle-${GRADLE_VERSION}/bin/gradle wrapper --gradle-version ${GRADLE_VERSION}
-          
-          # Make sure it's executable
           chmod +x gradlew
-          
           echo "=== Generated files ==="
           ls -la gradlew*
           ls -la gradle/wrapper/
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: egbe-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: egbe-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
