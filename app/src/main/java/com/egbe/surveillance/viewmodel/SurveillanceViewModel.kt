@@ -39,7 +39,6 @@ class SurveillanceViewModel : ViewModel() {
         logs.value = listOf("[$timestamp] $msg") + logs.value.take(60)
     }
 
-    // ===================== SATELLITES =====================
     fun loadSatellites() {
         viewModelScope.launch {
             try {
@@ -52,7 +51,6 @@ class SurveillanceViewModel : ViewModel() {
         }
     }
 
-    // ===================== PHONE TRACE / OSINT =====================
     fun tracePhone(phone: String) {
         if (phone.isBlank()) {
             addLog("Empty phone number")
@@ -62,7 +60,7 @@ class SurveillanceViewModel : ViewModel() {
         viewModelScope.launch {
             isTracing.value = true
             addLog("Analyzing $phone ...")
-            delay(1600) // realistic feel
+            delay(1600)
 
             try {
                 val result = repo.analyzePhone(phone)
@@ -98,7 +96,6 @@ class SurveillanceViewModel : ViewModel() {
         }
     }
 
-    // ===================== IP GEOLOCATION =====================
     fun lookupIp(ip: String) {
         if (ip.isBlank()) return
 
@@ -120,7 +117,6 @@ class SurveillanceViewModel : ViewModel() {
         }
     }
 
-    // ===================== LURE / PHISHING =====================
     fun createPhishingLink(title: String, redirect: String) {
         viewModelScope.launch {
             addLog("Creating tracking link...")
@@ -143,6 +139,6 @@ class SurveillanceViewModel : ViewModel() {
     }
 
     fun refreshCampaign(id: String) {
-        // Placeholder for future click sync
+        // future use
     }
 }
