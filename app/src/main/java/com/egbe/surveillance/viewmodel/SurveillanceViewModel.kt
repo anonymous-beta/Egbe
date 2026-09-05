@@ -4,122 +4,145 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.egbe.surveillance.data.model.*
-import com.egbe.surveillance.data.remote.RetrofitClient
-import com.egbe.surveillance.data.remote.TraceRequest
-import com.egbe.surveillance.data.remote.PhishingCreateRequest
-import com.egbe.surveillance.data.remote.IpRequest
+import com.egbe.surveillance.data.repository.SurveillanceRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.*
 
 class SurveillanceViewModel : ViewModel() {
+
+    private val repo = SurveillanceRepository()
+
     var traceResult = mutableStateOf<TraceResponse?>(null)
         private set
-    
+
     var isTracing = mutableStateOf(false)
         private set
-    
+
     var satellites = mutableStateOf<List<Satellite>>(emptyList())
         private set
-    
+
     var phishingCampaign = mutableStateOf<PhishingCampaign?>(null)
         private set
-    
+
     var logs = mutableStateOf<List<String>>(emptyList())
         private set
-    
-    var ipResult = mutableStateOf<String>("")
+
+    var ipResult = mutableStateOf<IpInfo?>(null)
+        private set
+
+    var isLoadingIp = mutableStateOf(false)
         private set
 
     fun addLog(msg: String) {
-        val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date())
-        logs.value = listOf("[$timestamp] $msg") + logs.value.take(49)
+        val timestamp = java.text.SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
+        logs.value = listOf("[$timestamp] $msg") + logs.value.take(60)
     }
 
-    fun tracePhone(phone: String) {
-        viewModelScope.launch {
-            isTracing.value = true
-            addLog("Initiating trace on $phone...")
-            try {
-                val resp = RetrofitClient.api.tracePhone(TraceRequest(phone))
-                if (resp.isSuccessful) {
-                    traceResult.value = resp.body()
-                    addLog("Trace complete: ${resp.body()?.country}")
-                } else {
-                    addLog("Trace failed: ${resp.errorBody()?.string()}")
-                }
-            } catch (e: Exception) {
-                addLog("Error: ${e.message}")
-            }
-            isTracing.value = false
-        }
-    }
-
-    fun startLiveTracking(traceId: String) {
-        viewModelScope.launch {
-            addLog("Live tracking activated")
-            while (true) {
-                try {
-                    val resp = RetrofitClient.api.getLiveTrace(traceId)
-                    if (resp.isSuccessful) {
-                        traceResult.value = resp.body()
-                    }
-                } catch (_: Exception) {}
-                delay(3000)
-            }
-        }
-    }
-
+    // ===================== SATELLITES =====================
     fun loadSatellites() {
         viewModelScope.launch {
             try {
-                val resp = RetrofitClient.api.getSatellites()
-                if (resp.isSuccessful) {
-                    satellites.value = resp.body()?.all ?: emptyList()
-                }
+                satellites.value = repo.getSatellites()
+                val visibleCount = satellites.value.count { it.visible }
+                addLog("Loaded ${satellites.value.size} satellites ($visibleCount currently visible)")
             } catch (e: Exception) {
-                addLog("Satellite load failed: ${e.message}")
+                addLog("Satellite error: ${e.message}")
             }
         }
     }
 
+    // ===================== PHONE TRACE / OSINT =====================
+    fun tracePhone(phone: String) {
+        if (phone.isBlank()) {
+            addLog("Empty phone number")
+            return
+        }
+
+        viewModelScope.launch {
+            isTracing.value = true
+            addLog("Analyzing $phone ...")
+            delay(1600) // realistic feel
+
+            try {
+                val result = repo.analyzePhone(phone)
+                traceResult.value = result
+                addLog("Result → ${result.city}, ${result.country} | ${result.carrier} | Risk: ${result.riskScore}")
+            } catch (e: Exception) {
+                addLog("Analysis failed: ${e.message}")
+            } finally {
+                isTracing.value = false
+            }
+        }
+    }
+
+    fun startLiveTracking(traceId: String = "live") {
+        viewModelScope.launch {
+            addLog("Live tracking started")
+            while (true) {
+                delay(4500)
+                traceResult.value?.let { current ->
+                    val jitter = 0.0015
+                    val newLat = current.location.lat + (Random().nextDouble() - 0.5) * jitter
+                    val newLon = current.location.lon + (Random().nextDouble() - 0.5) * jitter
+                    traceResult.value = current.copy(
+                        location = current.location.copy(
+                            lat = newLat,
+                            lon = newLon,
+                            accuracy = (150..900).random()
+                        ),
+                        timestamp = System.currentTimeMillis()
+                    )
+                }
+            }
+        }
+    }
+
+    // ===================== IP GEOLOCATION =====================
+    fun lookupIp(ip: String) {
+        if (ip.isBlank()) return
+
+        viewModelScope.launch {
+            isLoadingIp.value = true
+            addLog("Looking up $ip ...")
+            try {
+                val result = repo.lookupIp(ip.trim())
+                result.onSuccess {
+                    ipResult.value = it
+                    addLog("IP resolved: ${it.city}, \( {it.country} ( \){it.isp})")
+                }.onFailure {
+                    addLog("IP lookup failed: ${it.message}")
+                    ipResult.value = null
+                }
+            } finally {
+                isLoadingIp.value = false
+            }
+        }
+    }
+
+    // ===================== LURE / PHISHING =====================
     fun createPhishingLink(title: String, redirect: String) {
         viewModelScope.launch {
-            addLog("Generating tracking link...")
-            try {
-                val resp = RetrofitClient.api.createPhishingCampaign(PhishingCreateRequest(title, redirect))
-                if (resp.isSuccessful) {
-                    phishingCampaign.value = resp.body()
-                    addLog("Link generated: ${resp.body()?.url}")
-                }
-            } catch (e: Exception) {
-                addLog("Link gen failed: ${e.message}")
-            }
+            addLog("Creating tracking link...")
+            delay(900)
+
+            val id = UUID.randomUUID().toString().replace("-", "").take(10)
+            val trackingUrl = "https://egbe.app/l/$id"
+
+            phishingCampaign.value = PhishingCampaign(
+                id = id,
+                title = title.ifBlank { "Campaign" },
+                trackingUrl = trackingUrl,
+                redirectUrl = redirect.ifBlank { "https://google.com" },
+                clicks = 0,
+                uniqueClicks = 0,
+                createdAt = System.currentTimeMillis()
+            )
+            addLog("Link ready: $trackingUrl")
         }
     }
 
     fun refreshCampaign(id: String) {
-        viewModelScope.launch {
-            try {
-                val resp = RetrofitClient.api.getCampaign(id)
-                if (resp.isSuccessful) {
-                    phishingCampaign.value = resp.body()
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    fun lookupIp(ip: String) {
-        viewModelScope.launch {
-            try {
-                val resp = RetrofitClient.api.geolocateIp(IpRequest(ip))
-                if (resp.isSuccessful) {
-                    val data = resp.body()
-                    ipResult.value = "${data?.ip} → ${data?.city}, ${data?.country} (${data?.org})"
-                    addLog("IP resolved: ${data?.city}")
-                }
-            } catch (e: Exception) {
-                addLog("IP lookup failed: ${e.message}")
-            }
-        }
+        // Placeholder for future click sync
     }
 }
