@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.egbe.surveillance.ui.theme.EGBECyan
 import com.egbe.surveillance.ui.theme.EGBEGreen
 import com.egbe.surveillance.viewmodel.SurveillanceViewModel
