@@ -25,14 +25,13 @@ jobs:
 
       - name: Generate Gradle Wrapper (temporary)
         run: |
-          # Install Gradle temporarily just to generate the wrapper
-          sudo apt-get update
-          sudo apt-get install -y gradle
+          # Download a modern Gradle distribution
+          GRADLE_VERSION=8.2
+          wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip -O gradle.zip
+          unzip -q gradle.zip
+          ./gradle-${GRADLE_VERSION}/bin/gradle wrapper --gradle-version ${GRADLE_VERSION}
           
-          # Generate the missing wrapper files
-          gradle wrapper --gradle-version 8.2
-          
-          # Make sure the script is executable
+          # Make sure it's executable
           chmod +x gradlew
           
           echo "=== Generated files ==="
