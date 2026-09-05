@@ -6,9 +6,9 @@ data class TraceResponse(
     val countryCode: String,
     val city: String,
     val carrier: String,
-    val lineType: String,          // mobile / landline / voip
+    val lineType: String,
     val valid: Boolean,
-    val riskScore: Int,            // 0-100
+    val riskScore: Int,
     val location: Location,
     val status: String,
     val timestamp: Long,
@@ -31,7 +31,7 @@ data class Satellite(
     val altitudeKm: Double,
     val periodMin: Double = 0.0,
     val visible: Boolean,
-    val type: String = "Unknown"   // ISS, Starlink, Weather, etc.
+    val type: String = "Unknown"
 )
 
 data class PhishingCampaign(
