@@ -44,7 +44,7 @@ class SurveillanceViewModel : ViewModel() {
             try {
                 satellites.value = repo.getSatellites()
                 val visibleCount = satellites.value.count { it.visible }
-                addLog("Loaded ${satellites.value.size} satellites ($visibleCount currently visible)")
+                addLog("Loaded ${satellites.value.size} satellites - $visibleCount currently visible")
             } catch (e: Exception) {
                 addLog("Satellite error: ${e.message}")
             }
@@ -106,7 +106,7 @@ class SurveillanceViewModel : ViewModel() {
                 val result = repo.lookupIp(ip.trim())
                 result.onSuccess {
                     ipResult.value = it
-                    addLog("IP resolved: ${it.city}, \( {it.country} ( \){it.isp})")
+                    addLog("IP resolved: ${it.city}, ${it.country} - ${it.isp}")
                 }.onFailure {
                     addLog("IP lookup failed: ${it.message}")
                     ipResult.value = null
