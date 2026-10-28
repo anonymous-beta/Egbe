@@ -4,17 +4,41 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.foundation.layout.*
+import android.net.Uri
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,129 +48,244 @@ import com.egbe.surveillance.ui.theme.EGBEGreen
 import com.egbe.surveillance.ui.theme.EGBEAmber
 import com.egbe.surveillance.viewmodel.SurveillanceViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+private val CampaignMuted = Color(0xFF94A3B8)
+private val CampaignPanel = Color(0xFF1A2332)
+
 @Composable
 fun PhishingScreen(vm: SurveillanceViewModel) {
     var title by remember { mutableStateOf("") }
-    var redirect by remember { mutableStateOf("https://google.com") }
-    val campaign = vm.phishingCampaign.value
+    var redirect by remember { mutableStateOf("") }
+    var validationError by remember { mutableStateOf<String?>(null) }
+
+    val campaign by vm.phishingCampaign
+    val loading by vm.campaignLoading
     val context = LocalContext.current
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            "LURE GENERATOR",
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            text = "SECURITY AWARENESS",
+            fontFamily = FontFamily.Monospace,
             fontSize = 15.sp,
             color = EGBECyan,
             letterSpacing = 2.sp
         )
-        Spacer(modifier = Modifier.height(6.dp))
+
         Text(
-            "Create tracking links • Clicks stored locally",
-            fontSize = 11.sp,
-            color = androidx.compose.ui.graphics.Color(0xFF94A3B8)
+            text = "Create a transparent training campaign that counts visits " +
+                "to its campaign link.",
+            fontSize = 12.sp,
+            color = CampaignMuted
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Text(
+            text = "Use this only for authorized exercises. The campaign does " +
+                "not collect GPS coordinates or passwords.",
+            fontSize = 11.sp,
+            color = CampaignMuted
+        )
 
         OutlinedTextField(
             value = title,
-            onValueChange = { title = it },
-            label = { Text("Campaign Title") },
-            placeholder = { Text("Security Update") },
+            onValueChange = {
+                title = it.take(100)
+                validationError = null
+            },
+            label = { Text("Campaign title") },
+            placeholder = { Text("Security awareness exercise") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EGBECyan, focusedLabelColor = EGBECyan)
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = EGBECyan,
+                focusedLabelColor = EGBECyan
+            )
         )
-
-        Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
             value = redirect,
-            onValueChange = { redirect = it },
-            label = { Text("Redirect URL") },
-            placeholder = { Text("https://example.com") },
+            onValueChange = {
+                redirect = it.take(2048)
+                validationError = null
+            },
+            label = { Text("HTTPS destination") },
+            placeholder = { Text("https://example.org/training") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EGBECyan, focusedLabelColor = EGBECyan)
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = EGBECyan,
+                focusedLabelColor = EGBECyan
+            )
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = { vm.createPhishingLink(title, redirect) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = EGBECyan)
-        ) {
-            Text("GENERATE TRACKING LINK", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold)
+        validationError?.let { message ->
+            Text(
+                text = message,
+                color = Color(0xFFEF4444),
+                fontSize = 12.sp
+            )
         }
 
-        if (campaign != null) {
-            Spacer(modifier = Modifier.height(28.dp))
-            CampaignCard(campaign, context)
+        Button(
+            onClick = {
+                val destination = redirect.trim()
+                val uri = runCatching { Uri.parse(destination) }.getOrNull()
+
+                val validDestination =
+                    uri != null &&
+                    uri.scheme.equals("https", ignoreCase = true) &&
+                    !uri.host.isNullOrBlank() &&
+                    uri.userInfo == null
+
+                if (title.isBlank()) {
+                    validationError = "Enter a campaign title."
+                } else if (!validDestination) {
+                    validationError =
+                        "Enter a valid HTTPS destination without embedded credentials."
+                } else {
+                    validationError = null
+                    vm.createPhishingLink(title.trim(), destination)
+                }
+            },
+            enabled = !loading,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = EGBECyan,
+                contentColor = Color(0xFF0A0E17)
+            )
+        ) {
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.height(18.dp),
+                    color = Color(0xFF0A0E17),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = "CREATE TRAINING CAMPAIGN",
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        campaign?.let {
+            CampaignCard(
+                campaign = it,
+                context = context,
+                onRefresh = { vm.refreshCampaign(it.id) }
+            )
         }
     }
 }
 
 @Composable
-fun CampaignCard(campaign: PhishingCampaign, context: Context) {
+private fun CampaignCard(
+    campaign: PhishingCampaign,
+    context: Context,
+    onRefresh: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color(0xFF1A2332)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFFFFFFF).copy(alpha = 0.08f))
+        colors = CardDefaults.cardColors(
+            containerColor = CampaignPanel
+        ),
+        border = BorderStroke(
+            1.dp,
+            Color.White.copy(alpha = 0.08f)
+        )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             Text(
-                campaign.title,
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                text = campaign.title,
+                fontFamily = FontFamily.Monospace,
                 fontSize = 15.sp,
                 color = EGBEGreen,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(8.dp))
 
-            Text("Tracking URL", color = androidx.compose.ui.graphics.Color(0xFF94A3B8), fontSize = 11.sp)
             Text(
-                campaign.trackingUrl,
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                fontSize = 13.sp,
-                color = androidx.compose.ui.graphics.Color.White,
-                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                text = "CAMPAIGN LINK",
+                fontSize = 10.sp,
+                color = CampaignMuted
             )
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = campaign.trackingUrl,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color.White
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 AssistChip(
                     onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("tracking", campaign.trackingUrl))
-                        Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
+                        val clipboard =
+                            context.getSystemService(Context.CLIPBOARD_SERVICE)
+                                as ClipboardManager
+
+                        clipboard.setPrimaryClip(
+                            ClipData.newPlainText(
+                                "EGBE training campaign",
+                                campaign.trackingUrl
+                            )
+                        )
+
+                        Toast.makeText(
+                            context,
+                            "Campaign link copied",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     },
-                    label = { Text("Copy Link") },
-                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    label = { Text("Copy link") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = null
+                        )
+                    }
+                )
+
+                AssistChip(
+                    onClick = onRefresh,
+                    label = { Text("Refresh statistics") }
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-            Divider(color = androidx.compose.ui.graphics.Color(0xFF334155))
-            Spacer(modifier = Modifier.height(12.dp))
+            Divider(color = Color(0xFF334155))
 
-            Row(modifier = Modifier.fillMaxWidth()) {
-                StatItem("Clicks", campaign.clicks.toString(), Modifier.weight(1f))
-                StatItem("Unique", campaign.uniqueClicks.toString(), Modifier.weight(1f))
-            }
+            Text(
+                text = "RECORDED VISITS",
+                fontSize = 10.sp,
+                color = CampaignMuted
+            )
+
+            Text(
+                text = campaign.clicks.toString(),
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = EGBEAmber
+            )
+
+            Text(
+                text = "This is a visit count, not a verified unique-person count. " +
+                    "Campaign records are held by the backend and may disappear " +
+                    "if its in-memory storage is reset.",
+                fontSize = 11.sp,
+                color = CampaignMuted
+            )
         }
-    }
-}
-
-@Composable
-fun StatItem(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = EGBEAmber)
-        Text(label, fontSize = 11.sp, color = androidx.compose.ui.graphics.Color(0xFF94A3B8))
     }
 }
